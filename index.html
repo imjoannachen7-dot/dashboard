@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>公司管理儀表板</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg: #f8f7f4; --surface: #ffffff; --surface2: #f3f2ef;
+    --border: rgba(0,0,0,0.10); --border-strong: rgba(0,0,0,0.18);
+    --text: #1a1a18; --text2: #5a5a56; --text3: #909088;
+    --blue-50: #E6F1FB; --blue-600: #185FA5; --blue-800: #0C447C;
+    --teal-50: #E1F5EE; --teal-600: #0F6E56;
+    --amber-50: #FAEEDA; --amber-600: #854F0B; --amber-800: #633806;
+    --red-50: #FCEBEB; --red-200: #F09595; --red-600: #A32D2D; --red-800: #791F1F;
+    --green-50: #EAF3DE; --green-200: #97C459; --green-600: #3B6D11; --green-800: #27500A;
+    --radius: 10px; --radius-lg: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#1c1c1a; --surface:#26261f; --surface2:#2f2f25;
+      --border:rgba(255,255,255,0.10); --border-strong:rgba(255,255,255,0.18);
+      --text:#f0efe8; --text2:#b0af9f; --text3:#787870;
+      --blue-50:#042C53; --blue-600:#85B7EB; --blue-800:#B5D4F4;
+      --teal-50:#04342C; --teal-600:#5DCAA5;
+      --amber-50:#412402; --amber-600:#EF9F27; --amber-800:#FAC775;
+      --red-50:#501313; --red-200:#791F1F; --red-600:#F09595; --red-800:#F7C1C1;
+      --green-50:#173404; --green-200:#27500A; --green-600:#97C459; --green-800:#C0DD97;
+    }
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'PingFang TC','Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);font-size:14px;min-height:100vh}
+  .app{display:flex;min-height:100vh}
+  .sidebar{width:220px;background:var(--surface);border-right:0.5px solid var(--border-strong);padding:0;flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto}
+  .sidebar-logo{padding:24px 20px 16px;border-bottom:0.5px solid var(--border)}
+  .sidebar-logo h1{font-size:15px;font-weight:500;color:var(--text);letter-spacing:-0.01em}
+  .sidebar-logo p{font-size:11px;color:var(--text3);margin-top:2px}
+  .nav-section{padding:16px 12px 8px}
+  .nav-label{font-size:10px;font-weight:500;color:var(--text3);letter-spacing:0.08em;text-transform:uppercase;padding:0 8px 8px}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;color:var(--text2);font-size:13px;transition:all 0.15s;margin-bottom:2px}
+  .nav-item:hover{background:var(--surface2);color:var(--text)}
+  .nav-item.active{background:var(--blue-50);color:var(--blue-800);font-weight:500}
+  .nav-icon{width:18px;height:18px;flex-shrink:0}
+  .main{flex:1;overflow:hidden}
+  .panel{display:none;padding:28px 32px}
+  .panel.active{display:block}
+  .page-title{font-size:20px;font-weight:500;margin-bottom:4px}
+  .page-sub{font-size:13px;color:var(--text3);margin-bottom:24px}
+  .metrics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+  .metric-card{background:var(--surface2);border-radius:var(--radius);padding:14px 16px}
+  .metric-label{font-size:11px;color:var(--text3);margin-bottom:6px;font-weight:500;letter-spacing:0.02em}
+  .metric-value{font-size:22px;font-weight:500;line-height:1}
+  .metric-sub{font-size:11px;color:var(--text3);margin-top:4px}
+  .metric-value.good{color:var(--teal-600)}
+  .metric-value.warn{color:var(--amber-600)}
+  .metric-value.danger{color:var(--red-600)}
+  .card{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:20px 24px;margin-bottom:20px}
+  .card-title{font-size:14px;font-weight:500;margin-bottom:16px}
+  .chart-wrap{position:relative;width:100%}
+  .alert-box{border-radius:8px;padding:10px 14px;font-size:12px;margin-bottom:10px;display:flex;align-items:flex-start;gap:8px}
+  .alert-box.warn{background:var(--amber-50);color:var(--amber-800);border:0.5px solid var(--amber-600)}
+  .alert-box.danger{background:var(--red-50);color:var(--red-800);border:0.5px solid var(--red-200)}
+  .alert-box.ok{background:var(--green-50);color:var(--green-800);border:0.5px solid var(--green-200)}
+  .alert-box.info{background:var(--blue-50);color:var(--blue-800);border:0.5px solid var(--blue-600)}
+  .period-tabs{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:20px}
+  .period-tab{padding:5px 14px;border-radius:6px;font-size:12px;cursor:pointer;border:0.5px solid var(--border-strong);background:transparent;color:var(--text2);transition:all 0.15s}
+  .period-tab.active{background:var(--blue-600);color:#fff;border-color:var(--blue-600);font-weight:500}
+  .data-table{width:100%;border-collapse:collapse;font-size:12px}
+  .data-table th{text-align:left;padding:6px 10px;color:var(--text3);font-weight:500;border-bottom:0.5px solid var(--border);font-size:11px;letter-spacing:0.03em}
+  .data-table td{padding:8px 10px;border-bottom:0.5px solid var(--border);color:var(--text2)}
+  .data-table tr:last-child td{border-bottom:none}
+  .data-table .num{text-align:right;font-variant-numeric:tabular-nums}
+  .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:500}
+  .badge-ok{background:var(--green-50);color:var(--green-800)}
+  .badge-warn{background:var(--amber-50);color:var(--amber-800)}
+  .badge-danger{background:var(--red-50);color:var(--red-800)}
+  .badge-gray{background:var(--surface2);color:var(--text3)}
+  .progress-bar-wrap{background:var(--surface2);border-radius:4px;height:6px;overflow:hidden;width:100%;min-width:60px}
+  .progress-bar-fill{height:100%;border-radius:4px;transition:width 0.3s}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:900px){.two-col{grid-template-columns:1fr}}
+  .admin-form{display:grid;gap:14px}
+  .form-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:end}
+  @media(max-width:700px){.form-row{grid-template-columns:1fr 1fr}}
+  .form-group label{display:block;font-size:11px;color:var(--text3);margin-bottom:4px;font-weight:500}
+  .form-group input,.form-group select{width:100%;padding:7px 10px;border:0.5px solid var(--border-strong);border-radius:7px;background:var(--surface);color:var(--text);font-size:13px;font-family:inherit}
+  .form-group input:focus,.form-group select:focus{outline:none;border-color:var(--blue-600)}
+  .btn{padding:7px 16px;border-radius:7px;font-size:13px;cursor:pointer;border:0.5px solid var(--border-strong);background:var(--surface);color:var(--text);font-family:inherit;transition:all 0.15s}
+  .btn:hover{background:var(--surface2)}
+  .btn-primary{background:var(--blue-600);color:#fff;border-color:var(--blue-600);font-weight:500}
+  .btn-primary:hover{opacity:0.9}
+  .btn-danger{background:var(--red-600);color:#fff;border-color:var(--red-600)}
+  .btn-danger:hover{opacity:0.9}
+  .legend-row{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:12px;font-size:11px;color:var(--text2)}
+  .legend-dot{width:10px;height:10px;border-radius:2px;display:inline-block}
+  .dept-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+  .dept-card{background:var(--surface);border:0.5px solid var(--border);border-radius:10px;padding:12px 14px}
+  .dept-name{font-size:12px;font-weight:500;margin-bottom:8px}
+  .dept-code{font-size:10px;color:var(--text3)}
+  .dept-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;font-size:11px}
+  .dept-row-label{color:var(--text3)}
+  .dept-row-val{font-variant-numeric:tabular-nums;font-weight:500}
+  .tag{font-size:10px;padding:1px 6px;border-radius:3px;background:var(--surface2);color:var(--text3)}
+  .loading-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;z-index:999;backdrop-filter:blur(2px)}
+  .loading-box{background:var(--surface);border-radius:14px;padding:28px 36px;text-align:center;border:0.5px solid var(--border)}
+  .loading-box p{font-size:14px;color:var(--text2);margin-top:10px}
+  .spinner{width:28px;height:28px;border:2.5px solid var(--border-strong);border-top-color:var(--blue-600);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .sync-bar{display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--surface2);border-radius:8px;margin-bottom:16px;font-size:12px;color:var(--text3)}
+  .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--green-600);flex-shrink:0}
+  .sync-dot.loading{background:var(--amber-600);animation:pulse 1s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+</style>
+</head>
+<body>
+<div id="loading-overlay" class="loading-overlay">
+  <div class="loading-box">
+    <div class="spinner"></div>
+    <p>正在連線 Google Sheets…</p>
+  </div>
+</div>
+<div class="app">
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <h1>管理儀表板</h1>
+      <p>連結 Google Sheets</p>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">印量管理</div>
+      <div class="nav-item active" onclick="showPanel('printer-dash',this)">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="6" width="14" height="8" rx="2"/><path d="M6 6V4h8v2M6 14v2h8v-2"/></svg>
+        印量儀表板
+      </div>
+      <div class="nav-item" onclick="showPanel('printer-admin',this)">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="3"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.42 1.42M14.36 14.36l1.42 1.42M4.22 15.78l1.42-1.42M14.36 5.64l1.42-1.42"/></svg>
+        後台管理
+      </div>
+    </div>
+    <div class="nav-section">
+      <div class="nav-label">車資管理</div>
+      <div class="nav-item" onclick="showPanel('transport-dash',this)">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="7" width="16" height="9" rx="2"/><path d="M5 7V5a5 5 0 0110 0v2"/><circle cx="6.5" cy="13" r="1.5"/><circle cx="13.5" cy="13" r="1.5"/></svg>
+        乘車費用儀表板
+      </div>
+      <div class="nav-item" onclick="showPanel('transport-admin',this)">
+        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="3"/><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.42 1.42M14.36 14.36l1.42 1.42M4.22 15.78l1.42-1.42M14.36 5.64l1.42-1.42"/></svg>
+        後台管理
+      </div>
+    </div>
+  </nav>
+  <main class="main">
+    <div id="printer-dash" class="panel active">
+      <div class="page-title">印量儀表板</div>
+      <div class="page-sub">黑白 / 彩色印量追蹤・半年合約用量監控</div>
+      <div class="sync-bar"><span class="sync-dot" id="p-sync-dot"></span><span id="p-sync-text">資料載入中…</span><button class="btn" style="margin-left:auto;padding:4px 12px;font-size:11px" onclick="loadAll()">重新整理</button></div>
+      <div id="printer-alerts"></div>
+      <div class="metrics-grid" id="printer-metrics"></div>
+      <div class="period-tabs">
+        <button class="period-tab active" onclick="setPeriod('all',this)">全部</button>
+        <button class="period-tab" onclick="setPeriod('2024H1',this)">2023/10–2024/03</button>
+        <button class="period-tab" onclick="setPeriod('2024H2',this)">2024/04–2024/09</button>
+        <button class="period-tab" onclick="setPeriod('2025H1',this)">2024/10–2025/03</button>
+        <button class="period-tab" onclick="setPeriod('2025H2',this)">2025/04–2025/09</button>
+        <button class="period-tab" onclick="setPeriod('2026H1',this)">2025/10–2026/03</button>
+      </div>
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title">每月黑白印量</div>
+          <div class="legend-row">
+            <span style="display:flex;align-items:center;gap:5px"><span class="legend-dot" style="background:#185FA5"></span>實際印量</span>
+            <span style="display:flex;align-items:center;gap:5px"><span class="legend-dot" style="background:rgba(226,75,74,0.5)"></span>月上限 20,000</span>
+          </div>
+          <div class="chart-wrap" style="height:260px"><canvas id="bwChart" role="img" aria-label="黑白印量月趨勢">黑白印量趨勢</canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">每月彩色印量</div>
+          <div class="legend-row">
+            <span style="display:flex;align-items:center;gap:5px"><span class="legend-dot" style="background:#0F6E56"></span>實際印量</span>
+            <span style="display:flex;align-items:center;gap:5px"><span class="legend-dot" style="background:rgba(226,75,74,0.5)"></span>月上限 2,000</span>
+          </div>
+          <div class="chart-wrap" style="height:260px"><canvas id="colorChart" role="img" aria-label="彩色印量月趨勢">彩色印量趨勢</canvas></div>
+        </div>
+      </div>
+      <div class="card"><div class="card-title">半年合約用量追蹤</div><div id="half-year-table"></div></div>
+      <div class="card">
+        <div class="card-title">月份明細</div>
+        <table class="data-table">
+          <thead><tr><th>月份</th><th class="num">黑白印量</th><th class="num">彩色印量</th><th class="num">合計</th><th>黑白狀態</th><th>彩色狀態</th><th>備註</th></tr></thead>
+          <tbody id="printer-detail-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div id="printer-admin" class="panel">
+      <div class="page-title">印量後台管理</div>
+      <div class="page-sub">新增或修改月份印量資料，儲存後自動同步至 Google Sheets</div>
+      <div class="card">
+        <div class="card-title">新增 / 更新月份資料</div>
+        <div class="admin-form">
+          <div class="form-row">
+            <div class="form-group"><label>年份</label><select id="pa-year"><option>2024</option><option>2025</option><option selected>2026</option><option>2027</option></select></div>
+            <div class="form-group"><label>月份</label><select id="pa-month"><option value="1">1月</option><option value="2">2月</option><option value="3">3月</option><option value="4">4月</option><option value="5">5月</option><option value="6">6月</option><option value="7">7月</option><option value="8">8月</option><option value="9">9月</option><option value="10">10月</option><option value="11">11月</option><option value="12">12月</option></select></div>
+            <div class="form-group"><label>黑白印量（張）</label><input type="number" id="pa-bw" placeholder="例：15000"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>彩色印量（張）</label><input type="number" id="pa-color" placeholder="例：1500"></div>
+            <div class="form-group"><label>備註</label><input type="text" id="pa-note" placeholder="選填"></div>
+            <div class="form-group" style="display:flex;align-items:flex-end;gap:8px"><button class="btn btn-primary" onclick="savePrinterRow()">儲存至 Sheets</button></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">現有資料</div>
+        <table class="data-table">
+          <thead><tr><th>月份</th><th class="num">黑白印量</th><th class="num">彩色印量</th><th>備註</th><th>操作</th></tr></thead>
+          <tbody id="admin-printer-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div id="transport-dash" class="panel">
+      <div class="page-title">Uber &amp; 55688 乘車費用儀表板</div>
+      <div class="page-sub">各部門月費・累計金額・預算使用率</div>
+      <div class="sync-bar"><span class="sync-dot" id="t-sync-dot"></span><span id="t-sync-text">資料載入中…</span><button class="btn" style="margin-left:auto;padding:4px 12px;font-size:11px" onclick="loadAll()">重新整理</button></div>
+      <div id="transport-alerts"></div>
+      <div class="metrics-grid" id="transport-metrics"></div>
+      <div class="card">
+        <div class="card-title">各部門月費比較</div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <select id="t-month-select" onchange="renderTransportDash()" style="padding:5px 10px;border:0.5px solid var(--border-strong);border-radius:7px;background:var(--surface);color:var(--text);font-family:inherit;font-size:12px">
+            <option value="1">1月</option><option value="2">2月</option><option value="3">3月</option><option value="4">4月</option><option value="5">5月</option><option value="6">6月</option>
+          </select>
+        </div>
+        <div class="legend-row">
+          <span style="display:flex;align-items:center;gap:5px"><span class="legend-dot" style="background:#185FA5"></span>Uber</span>
+          <span style="display:flex;align-items:center;gap:5px"><span class="legend-dot" style="background:#0F6E56"></span>55688</span>
+        </div>
+        <div class="chart-wrap" id="t-chart-wrap" style="height:320px"><canvas id="transportChart" role="img" aria-label="各部門乘車費用">乘車費用</canvas></div>
+      </div>
+      <div class="card"><div class="card-title">累計費用與預算追蹤</div><div class="dept-grid" id="dept-cards"></div></div>
+      <div class="card">
+        <div class="card-title">部門月費明細</div>
+        <div style="overflow-x:auto">
+          <table class="data-table">
+            <thead><tr><th>部門</th><th class="num">Uber 累計</th><th class="num">55688 累計</th><th class="num">總累計</th><th>預算</th><th>使用率</th></tr></thead>
+            <tbody id="transport-detail-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div id="transport-admin" class="panel">
+      <div class="page-title">乘車費用後台管理</div>
+      <div class="page-sub">更新各部門月份費用與預算，自動同步至 Google Sheets</div>
+      <div class="card">
+        <div class="card-title">新增 / 更新費用</div>
+        <div class="admin-form">
+          <div class="form-row">
+            <div class="form-group"><label>部門代碼</label><input type="text" id="ta-code" placeholder="例：CH1200"></div>
+            <div class="form-group"><label>部門名稱</label><input type="text" id="ta-name" placeholder="例：總務處"></div>
+            <div class="form-group"><label>月份</label><select id="ta-month"><option value="1">1月</option><option value="2">2月</option><option value="3">3月</option><option value="4">4月</option><option value="5">5月</option><option value="6">6月</option></select></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Uber 金額（元）</label><input type="number" id="ta-uber" placeholder="0"></div>
+            <div class="form-group"><label>55688 金額（元）</label><input type="number" id="ta-fleet" placeholder="0"></div>
+            <div class="form-group"><label>年度預算（元，選填）</label><input type="number" id="ta-budget" placeholder="0"></div>
+          </div>
+          <div><button class="btn btn-primary" onclick="saveTransportRow()">儲存至 Sheets</button></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">現有資料</div>
+        <div style="overflow-x:auto">
+          <table class="data-table">
+            <thead><tr><th>部門代碼</th><th>部門名稱</th><th>月份</th><th class="num">Uber</th><th class="num">55688</th><th class="num">預算</th><th>操作</th></tr></thead>
+            <tbody id="ta-detail-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<script>
+const API = 'https://script.google.com/macros/s/AKfycbwpF0r53rHWxOHLzEpryhIPFCdNIxZIyyrAWu2i97fGw_eKAQ8VxKsQd1Wom7bQiDzHPQ/exec';
+const BW_MONTHLY = 20000, COLOR_MONTHLY = 2000;
+const BW_HALF = 120000, COLOR_HALF = 12000;
+let printerData = [], transportData = [];
+let bwChart = null, colorChart = null, transportChart = null;
+let currentPeriod = 'all';
+const halfYears = [
+  {key:'2024H1',label:'2023/10–2024/03',months:[{y:2023,m:10},{y:2023,m:11},{y:2023,m:12},{y:2024,m:1},{y:2024,m:2},{y:2024,m:3}]},
+  {key:'2024H2',label:'2024/04–2024/09',months:[{y:2024,m:4},{y:2024,m:5},{y:2024,m:6},{y:2024,m:7},{y:2024,m:8},{y:2024,m:9}]},
+  {key:'2025H1',label:'2024/10–2025/03',months:[{y:2024,m:10},{y:2024,m:11},{y:2024,m:12},{y:2025,m:1},{y:2025,m:2},{y:2025,m:3}]},
+  {key:'2025H2',label:'2025/04–2025/09',months:[{y:2025,m:4},{y:2025,m:5},{y:2025,m:6},{y:2025,m:7},{y:2025,m:8},{y:2025,m:9}]},
+  {key:'2026H1',label:'2025/10–2026/03',months:[{y:2025,m:10},{y:2025,m:11},{y:2025,m:12},{y:2026,m:1},{y:2026,m:2},{y:2026,m:3}]},
+];
+async function fetchSheet(sheetName) {
+  const res = await fetch(`${API}?sheet=${encodeURIComponent(sheetName)}`);
+  const raw = await res.json();
+  if (!raw || raw.length < 2) return [];
+  const headers = raw[0];
+  return raw.slice(1).map(row => { const obj = {}; headers.forEach((h,i) => obj[h] = row[i] ?? ''); return obj; });
+}
+async function saveSheet(sheetName, data) {
+  let rows;
+  if (sheetName === '印表機') {
+    rows = [['年份','月份','黑白印量','彩色印量','備註'], ...data.map(r => [r.year,r.month,r.bw,r.color,r.note||''])];
+  } else {
+    rows = [['部門代碼','部門名稱','月份','Uber','55688','預算'], ...data.map(r => [r.code,r.name,r.month,r.uber,r.fleet,r.budget||0])];
+  }
+  await fetch(API, {method:'POST', body:JSON.stringify({sheet:sheetName, data:rows})});
+}
+async function loadAll() {
+  setSyncState('loading');
+  try {
+    const [p,t] = await Promise.all([fetchSheet('印表機'), fetchSheet('Uber55688')]);
+    printerData = p.map(r => ({year:parseInt(r['年份'])||0,month:parseInt(r['月份'])||0,bw:parseInt(r['黑白印量'])||0,color:parseInt(r['彩色印量'])||0,note:r['備註']||''})).filter(r=>r.year>0);
+    transportData = t.map(r => ({code:String(r['部門代碼']||''),name:String(r['部門名稱']||''),month:parseInt(r['月份'])||0,uber:parseInt(r['Uber'])||0,fleet:parseInt(r['55688'])||0,budget:parseInt(r['預算'])||0})).filter(r=>r.code);
+    setSyncState('ok'); renderAll();
+  } catch(e) { setSyncState('error'); }
+  finally { document.getElementById('loading-overlay').style.display='none'; }
+}
+function setSyncState(state) {
+  const now = new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
+  ['p-sync-dot','t-sync-dot'].forEach(id => {
+    const el = document.getElementById(id); if(!el) return;
+    el.className = 'sync-dot'+(state==='loading'?' loading':'');
+    el.style.background = state==='error'?'#E24B4A':state==='loading'?'#BA7517':'#3B6D11';
+  });
+  ['p-sync-text','t-sync-text'].forEach(id => {
+    const el = document.getElementById(id); if(!el) return;
+    el.textContent = state==='loading'?'同步中…':state==='error'?'連線失敗，請重新整理':`已同步 ${now}`;
+  });
+}
+function renderAll() { renderPrinterDash(); renderPrinterAdmin(); renderTransportDash(); renderTransportAdmin(); }
+function showPanel(id,el) {
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById(id).classList.add('active'); el.classList.add('active');
+}
+function getFilteredPrinter() {
+  if(currentPeriod==='all') return [...printerData].sort((a,b)=>a.year!==b.year?a.year-b.year:a.month-b.month);
+  const hy=halfYears.find(h=>h.key===currentPeriod);
+  if(!hy) return printerData;
+  return hy.months.map(m=>printerData.find(r=>r.year===m.y&&r.month===m.m)).filter(Boolean);
+}
+function setPeriod(p,el) {
+  currentPeriod=p;
+  document.querySelectorAll('.period-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active'); renderPrinterDash();
+}
+function renderPrinterDash() {
+  const data=getFilteredPrinter();
+  const totalBW=data.reduce((s,r)=>s+r.bw,0), totalColor=data.reduce((s,r)=>s+r.color,0);
+  const avgBW=data.length?Math.round(totalBW/data.length):0, avgColor=data.length?Math.round(totalColor/data.length):0;
+  document.getElementById('printer-metrics').innerHTML=`
+    <div class="metric-card"><div class="metric-label">黑白總印量</div><div class="metric-value">${totalBW.toLocaleString()}</div><div class="metric-sub">張</div></div>
+    <div class="metric-card"><div class="metric-label">彩色總印量</div><div class="metric-value">${totalColor.toLocaleString()}</div><div class="metric-sub">張</div></div>
+    <div class="metric-card"><div class="metric-label">月均黑白</div><div class="metric-value ${avgBW>BW_MONTHLY?'danger':avgBW>BW_MONTHLY*0.9?'warn':'good'}">${avgBW.toLocaleString()}</div><div class="metric-sub">上限 ${BW_MONTHLY.toLocaleString()}</div></div>
+    <div class="metric-card"><div class="metric-label">月均彩色</div><div class="metric-value ${avgColor>COLOR_MONTHLY?'danger':avgColor>COLOR_MONTHLY*0.9?'warn':'good'}">${avgColor.toLocaleString()}</div><div class="metric-sub">上限 ${COLOR_MONTHLY.toLocaleString()}</div></div>`;
+  const alerts=[];
+  data.forEach(r=>{
+    if(r.bw>BW_MONTHLY) alerts.push({type:'danger',msg:`⛔ ${r.year}/${r.month}月 黑白 ${r.bw.toLocaleString()} 張，超過月合約！`});
+    else if(r.bw>BW_MONTHLY*0.9) alerts.push({type:'warn',msg:`⚠️ ${r.year}/${r.month}月 黑白 ${r.bw.toLocaleString()} 張，已達 90% 以上。`});
+    if(r.color>COLOR_MONTHLY) alerts.push({type:'danger',msg:`⛔ ${r.year}/${r.month}月 彩色 ${r.color.toLocaleString()} 張，超過月合約！`});
+    else if(r.color>COLOR_MONTHLY*0.9) alerts.push({type:'warn',msg:`⚠️ ${r.year}/${r.month}月 彩色 ${r.color.toLocaleString()} 張，已達 90% 以上。`});
+  });
+  document.getElementById('printer-alerts').innerHTML=alerts.length?alerts.map(a=>`<div class="alert-box ${a.type}"><span>${a.msg}</span></div>`).join(''):'<div class="alert-box ok"><span>✓ 所有月份印量均在合約範圍內。</span></div>';
+  const labels=data.map(r=>`${r.year}/${String(r.month).padStart(2,'0')}`);
+  if(bwChart) bwChart.destroy();
+  bwChart=new Chart(document.getElementById('bwChart'),{type:'bar',data:{labels,datasets:[{label:'黑白印量',data:data.map(r=>r.bw),backgroundColor:data.map(r=>r.bw>BW_MONTHLY?'#E24B4A':r.bw>BW_MONTHLY*0.9?'#BA7517':'#185FA5'),borderRadius:3},{label:'月上限',data:data.map(()=>BW_MONTHLY),type:'line',borderColor:'rgba(226,75,74,0.4)',borderDash:[4,3],pointRadius:0,borderWidth:1.5,fill:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()} 張`}}},scales:{x:{ticks:{font:{size:10},maxRotation:45,autoSkip:false}},y:{ticks:{font:{size:10},callback:v=>v.toLocaleString()}}}}});
+  if(colorChart) colorChart.destroy();
+  colorChart=new Chart(document.getElementById('colorChart'),{type:'bar',data:{labels,datasets:[{label:'彩色印量',data:data.map(r=>r.color),backgroundColor:data.map(r=>r.color>COLOR_MONTHLY?'#E24B4A':r.color>COLOR_MONTHLY*0.9?'#BA7517':'#0F6E56'),borderRadius:3},{label:'月上限',data:data.map(()=>COLOR_MONTHLY),type:'line',borderColor:'rgba(226,75,74,0.4)',borderDash:[4,3],pointRadius:0,borderWidth:1.5,fill:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()} 張`}}},scales:{x:{ticks:{font:{size:10},maxRotation:45,autoSkip:false}},y:{ticks:{font:{size:10},callback:v=>v.toLocaleString()}}}}});
+  let hyHtml='<table class="data-table"><thead><tr><th>半年期間</th><th class="num">黑白印量</th><th class="num">剩餘可用(黑白)</th><th class="num">使用率(黑白)</th><th class="num">彩色印量</th><th class="num">剩餘可用(彩色)</th><th class="num">使用率(彩色)</th><th>狀態</th></tr></thead><tbody>';
+  halfYears.forEach(hy=>{
+    let bwSum=0,colorSum=0,hasMissing=false;
+    hy.months.forEach(m=>{const r=printerData.find(d=>d.year===m.y&&d.month===m.m);if(r){bwSum+=r.bw;colorSum+=r.color;}else hasMissing=true;});
+    if(bwSum===0&&colorSum===0) return;
+    const bwR=BW_HALF-bwSum,colorR=COLOR_HALF-colorSum,bwP=Math.round(bwSum/BW_HALF*100),colorP=Math.round(colorSum/COLOR_HALF*100);
+    const st=bwSum>BW_HALF||colorSum>COLOR_HALF?'<span class="badge badge-danger">超過合約</span>':bwP>90||colorP>90?'<span class="badge badge-warn">接近上限</span>':'<span class="badge badge-ok">正常</span>';
+    hyHtml+=`<tr><td>${hy.label}${hasMissing?' <span class="tag">部分遺漏</span>':''}</td><td class="num">${bwSum.toLocaleString()}</td><td class="num" style="color:${bwR<0?'var(--red-600)':'var(--teal-600)'}">${bwR.toLocaleString()}</td><td class="num"><div style="display:flex;align-items:center;gap:6px"><div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${Math.min(bwP,100)}%;background:${bwP>100?'#E24B4A':bwP>90?'#BA7517':'#185FA5'}"></div></div><span style="font-size:11px;min-width:30px">${bwP}%</span></div></td><td class="num">${colorSum.toLocaleString()}</td><td class="num" style="color:${colorR<0?'var(--red-600)':'var(--teal-600)'}">${colorR.toLocaleString()}</td><td class="num"><div style="display:flex;align-items:center;gap:6px"><div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${Math.min(colorP,100)}%;background:${colorP>100?'#E24B4A':colorP>90?'#BA7517':'#0F6E56'}"></div></div><span style="font-size:11px;min-width:30px">${colorP}%</span></div></td><td>${st}</td></tr>`;
+  });
+  hyHtml+='</tbody></table>';
+  document.getElementById('half-year-table').innerHTML=hyHtml;
+  document.getElementById('printer-detail-body').innerHTML=data.map(r=>{
+    const bb=r.bw>BW_MONTHLY?'badge-danger':r.bw>BW_MONTHLY*0.9?'badge-warn':'badge-ok';
+    const cb=r.color>COLOR_MONTHLY?'badge-danger':r.color>COLOR_MONTHLY*0.9?'badge-warn':'badge-ok';
+    return `<tr><td>${r.year}/${String(r.month).padStart(2,'0')}</td><td class="num">${r.bw.toLocaleString()}</td><td class="num">${r.color.toLocaleString()}</td><td class="num">${(r.bw+r.color).toLocaleString()}</td><td><span class="badge ${bb}">${r.bw>BW_MONTHLY?'超過':r.bw>BW_MONTHLY*0.9?'接近上限':'正常'}</span></td><td><span class="badge ${cb}">${r.color>COLOR_MONTHLY?'超過':r.color>COLOR_MONTHLY*0.9?'接近上限':'正常'}</span></td><td>${r.note||''}</td></tr>`;
+  }).join('');
+}
+function renderPrinterAdmin() {
+  const sorted=[...printerData].sort((a,b)=>a.year!==b.year?a.year-b.year:a.month-b.month);
+  document.getElementById('admin-printer-body').innerHTML=sorted.map(r=>`<tr><td>${r.year}/${String(r.month).padStart(2,'0')}</td><td class="num">${r.bw.toLocaleString()}</td><td class="num">${r.color.toLocaleString()}</td><td>${r.note||'-'}</td><td><button class="btn btn-danger" style="padding:3px 10px;font-size:11px" onclick="deletePrinterRow(${r.year},${r.month})">刪除</button></td></tr>`).join('');
+}
+async function savePrinterRow() {
+  const y=parseInt(document.getElementById('pa-year').value),m=parseInt(document.getElementById('pa-month').value);
+  const bw=parseInt(document.getElementById('pa-bw').value)||0,color=parseInt(document.getElementById('pa-color').value)||0;
+  const note=document.getElementById('pa-note').value;
+  const idx=printerData.findIndex(r=>r.year===y&&r.month===m);
+  if(idx>=0) printerData[idx]={year:y,month:m,bw,color,note}; else printerData.push({year:y,month:m,bw,color,note});
+  showToast('儲存中…'); await saveSheet('印表機',printerData);
+  renderPrinterAdmin(); renderPrinterDash(); showToast('✓ 已同步至 Google Sheets');
+}
+async function deletePrinterRow(y,m) {
+  if(!confirm(`確定刪除 ${y}/${m}月 的資料？`)) return;
+  printerData=printerData.filter(r=>!(r.year===y&&r.month===m));
+  await saveSheet('印表機',printerData); renderPrinterAdmin(); renderPrinterDash(); showToast('✓ 已刪除');
+}
+function getDepts() { const map={}; transportData.forEach(r=>{if(r.code) map[r.code]=r.name;}); return Object.entries(map).map(([code,name])=>({code,name})); }
+function getDeptTotal(code,type) { return transportData.filter(d=>d.code===code).reduce((s,d)=>s+(type==='uber'?d.uber:type==='fleet'?d.fleet:d.uber+d.fleet),0); }
+function getDeptBudget(code) { const rows=transportData.filter(d=>d.code===code&&d.budget>0); return rows.length?rows[rows.length-1].budget:0; }
+function renderTransportDash() {
+  const selMonth=parseInt(document.getElementById('t-month-select').value)||1;
+  const depts=getDepts();
+  const monthRows=transportData.filter(d=>d.month===selMonth);
+  const totalUber=monthRows.reduce((s,d)=>s+d.uber,0),totalFleet=monthRows.reduce((s,d)=>s+d.fleet,0);
+  const cumTotal=depts.reduce((s,d)=>s+getDeptTotal(d.code),0);
+  document.getElementById('transport-metrics').innerHTML=`<div class="metric-card"><div class="metric-label">${selMonth}月 Uber 合計</div><div class="metric-value">$${totalUber.toLocaleString()}</div></div><div class="metric-card"><div class="metric-label">${selMonth}月 55688 合計</div><div class="metric-value">$${totalFleet.toLocaleString()}</div></div><div class="metric-card"><div class="metric-label">${selMonth}月總費用</div><div class="metric-value">$${(totalUber+totalFleet).toLocaleString()}</div></div><div class="metric-card"><div class="metric-label">全部門累計</div><div class="metric-value">$${cumTotal.toLocaleString()}</div></div>`;
+  const alerts=[];
+  depts.forEach(d=>{const budget=getDeptBudget(d.code);if(!budget) return;const total=getDeptTotal(d.code),pct=Math.round(total/budget*100);if(total>budget) alerts.push({type:'danger',msg:`⛔ ${d.name} 累計 $${total.toLocaleString()} 已超過預算！`});else if(pct>=80) alerts.push({type:'warn',msg:`⚠️ ${d.name} 累計 $${total.toLocaleString()}，已達預算 ${pct}%。`});});
+  document.getElementById('transport-alerts').innerHTML=alerts.length?alerts.map(a=>`<div class="alert-box ${a.type}"><span>${a.msg}</span></div>`).join(''):'<div class="alert-box ok"><span>✓ 所有設定預算的部門均在範圍內。</span></div>';
+  const active=depts.filter(d=>{const r=transportData.find(x=>x.code===d.code&&x.month===selMonth);return r&&(r.uber+r.fleet)>0;});
+  document.getElementById('t-chart-wrap').style.height=Math.max(280,active.length*44+80)+'px';
+  if(transportChart) transportChart.destroy();
+  transportChart=new Chart(document.getElementById('transportChart'),{type:'bar',data:{labels:active.map(d=>d.name),datasets:[{label:'Uber',data:active.map(d=>{const r=transportData.find(x=>x.code===d.code&&x.month===selMonth);return r?r.uber:0;}),backgroundColor:'#185FA5',borderRadius:3},{label:'55688',data:active.map(d=>{const r=transportData.find(x=>x.code===d.code&&x.month===selMonth);return r?r.fleet:0;}),backgroundColor:'#0F6E56',borderRadius:3}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: $${ctx.parsed.x.toLocaleString()}`}}},scales:{x:{ticks:{font:{size:10},callback:v=>'$'+v.toLocaleString()}},y:{ticks:{font:{size:10}}}}}});
+  document.getElementById('dept-cards').innerHTML=depts.map(d=>{const total=getDeptTotal(d.code),budget=getDeptBudget(d.code),pct=budget>0?Math.round(total/budget*100):0;return `<div class="dept-card"><div class="dept-name">${d.name} <span class="dept-code">${d.code}</span></div><div class="dept-row"><span class="dept-row-label">累計費用</span><span class="dept-row-val">$${total.toLocaleString()}</span></div>${budget>0?`<div class="dept-row"><span class="dept-row-label">預算</span><span class="dept-row-val">$${budget.toLocaleString()}</span></div><div style="margin-top:6px"><div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${Math.min(pct,100)}%;background:${pct>100?'#E24B4A':pct>=80?'#BA7517':'#185FA5'}"></div></div><div style="font-size:10px;color:var(--text3);margin-top:3px">${pct}% <span class="badge ${pct>100?'badge-danger':pct>=80?'badge-warn':'badge-ok'}" style="font-size:9px;padding:1px 5px">${pct>100?'超過':pct>=80?'接近上限':'正常'}</span></div></div>`:'<div style="font-size:10px;color:var(--text3);margin-top:4px">尚未設定預算</div>'}</div>`;}).join('');
+  document.getElementById('transport-detail-body').innerHTML=depts.map(d=>{const uberSum=getDeptTotal(d.code,'uber'),fleetSum=getDeptTotal(d.code,'fleet'),total=uberSum+fleetSum,budget=getDeptBudget(d.code),pct=budget>0?Math.round(total/budget*100):0;return `<tr><td><strong>${d.name}</strong><br><span style="font-size:10px;color:var(--text3)">${d.code}</span></td><td class="num">$${uberSum.toLocaleString()}</td><td class="num">$${fleetSum.toLocaleString()}</td><td class="num"><strong>$${total.toLocaleString()}</strong></td><td class="num">${budget>0?'$'+budget.toLocaleString():'<span class="badge badge-gray">未設定</span>'}</td><td>${budget>0?`<div style="display:flex;align-items:center;gap:5px"><div class="progress-bar-wrap" style="min-width:50px"><div class="progress-bar-fill" style="width:${Math.min(pct,100)}%;background:${pct>100?'#E24B4A':pct>=80?'#BA7517':'#185FA5'}"></div></div><span style="font-size:10px">${pct}%</span></div>`:'—'}</td></tr>`;}).join('');
+}
+function renderTransportAdmin() {
+  document.getElementById('ta-detail-body').innerHTML=[...transportData].sort((a,b)=>a.month-b.month).map(r=>`<tr><td>${r.code}</td><td>${r.name}</td><td>${r.month}月</td><td class="num">$${r.uber.toLocaleString()}</td><td class="num">$${r.fleet.toLocaleString()}</td><td class="num">${r.budget>0?'$'+r.budget.toLocaleString():'-'}</td><td><button class="btn btn-danger" style="padding:3px 10px;font-size:11px" onclick="deleteTransportRow('${r.code}',${r.month})">刪除</button></td></tr>`).join('');
+}
+async function saveTransportRow() {
+  const code=document.getElementById('ta-code').value.trim(),name=document.getElementById('ta-name').value.trim();
+  const month=parseInt(document.getElementById('ta-month').value),uber=parseInt(document.getElementById('ta-uber').value)||0;
+  const fleet=parseInt(document.getElementById('ta-fleet').value)||0,budget=parseInt(document.getElementById('ta-budget').value)||0;
+  if(!code||!name){showToast('請填寫部門代碼和名稱');return;}
+  const idx=transportData.findIndex(d=>d.code===code&&d.month===month);
+  if(idx>=0) transportData[idx]={code,name,month,uber,fleet,budget}; else transportData.push({code,name,month,uber,fleet,budget});
+  showToast('儲存中…'); await saveSheet('Uber55688',transportData);
+  renderTransportAdmin(); renderTransportDash(); showToast('✓ 已同步至 Google Sheets');
+}
+async function deleteTransportRow(code,month) {
+  if(!confirm(`確定刪除 ${code} ${month}月 的資料？`)) return;
+  transportData=transportData.filter(d=>!(d.code===code&&d.month===month));
+  await saveSheet('Uber55688',transportData); renderTransportAdmin(); renderTransportDash(); showToast('✓ 已刪除');
+}
+function showToast(msg) {
+  const old=document.getElementById('toast'); if(old) old.remove();
+  const t=document.createElement('div'); t.id='toast';
+  t.style.cssText='position:fixed;bottom:24px;right:24px;background:var(--text);color:var(--bg);padding:10px 18px;border-radius:8px;font-size:13px;z-index:9999;opacity:0;transition:opacity 0.2s';
+  t.textContent=msg; document.body.appendChild(t);
+  setTimeout(()=>t.style.opacity='1',10);
+  setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),200);},2500);
+}
+loadAll();
+</script>
+</body>
+</html>
