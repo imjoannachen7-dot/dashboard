@@ -208,6 +208,15 @@
       <div id="transport-alerts"></div>
       <div class="metrics-grid" id="transport-metrics"></div>
       <div class="card">
+        <div class="card-title">全公司每月車資趨勢（Uber vs 55688）</div>
+        <div class="legend-row">
+          <span style="display:flex;align-items:center;gap:5px"><span class="legend-dot" style="background:#185FA5"></span>Uber</span>
+          <span style="display:flex;align-items:center;gap:5px"><span class="legend-dot" style="background:#0F6E56"></span>55688</span>
+          <span style="display:flex;align-items:center;gap:5px"><span class="legend-dot" style="background:#854F0B"></span>合計</span>
+        </div>
+        <div class="chart-wrap" style="height:280px"><canvas id="companyTrendChart">全公司月費趨勢</canvas></div>
+      </div>
+      <div class="card">
         <div class="card-title">各部門月費比較</div>
         <div style="display:flex;gap:8px;margin-bottom:12px">
           <select id="t-month-select" onchange="renderTransportDash()" style="padding:5px 10px;border:0.5px solid var(--border-strong);border-radius:7px;background:var(--surface);color:var(--text);font-family:inherit;font-size:12px">
@@ -216,15 +225,6 @@
         </div>
         <div class="legend-row"><span style="display:flex;align-items:center;gap:5px"><span class="legend-dot" style="background:#185FA5"></span>Uber</span><span style="display:flex;align-items:center;gap:5px"><span class="legend-dot" style="background:#0F6E56"></span>55688</span></div>
         <div class="chart-wrap" id="t-chart-wrap" style="height:320px"><canvas id="transportChart">乘車費用</canvas></div>
-      </div>
-      <div class="card">
-        <div class="card-title">全公司各部門每月費用趨勢</div>
-        <div style="display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap">
-          <button class="period-tab active" onclick="setTrendType('total',this)">Uber + 55688 合計</button>
-          <button class="period-tab" onclick="setTrendType('uber',this)">僅 Uber</button>
-          <button class="period-tab" onclick="setTrendType('fleet',this)">僅 55688</button>
-        </div>
-        <div class="chart-wrap" style="height:420px"><canvas id="trendChart">各部門月費趨勢</canvas></div>
       </div>
       <div class="card"><div class="card-title">累計費用與預算追蹤</div><div class="dept-grid" id="dept-cards"></div></div>
       <div class="card">
@@ -271,21 +271,39 @@
 <script>
 const API='https://script.google.com/macros/s/AKfycbwpF0r53rHWxOHLzEpryhIPFCdNIxZIyyrAWu2i97fGw_eKAQ8VxKsQd1Wom7bQiDzHPQ/exec';
 const DEPT_MAP={'CH0100':'股東會','CH0300':'管理部','CH0401':'董事長室','CH0402':'總經理室','CH0403':'行政秘書室','CH0500':'董事會秘書室','CH0600':'永續發展辦公室','CH0601':'基金會','CH0602':'IRPR','CH0700':'稽核室','CH0888':'財務共同費用','CH0801':'財務（嘉泥）','CH1000':'人文處','CH1100':'投資處','CH1200':'總務處','CH1400':'資訊處','OKA1':'OKA1'};
-const TREND_COLORS=['#185FA5','#0F6E56','#854F0B','#A32D2D','#5B3FA5','#0F6E6E','#6E3F0F','#3B6D11','#6E0F5B','#185F5F','#6E5B0F','#0F3B6E','#6E0F0F','#3F6E0F','#0F6E3B','#6E3B0F','#0F5B6E','#6E0F3B'];
 const BW_MONTHLY=20000,COLOR_MONTHLY=2000,BW_HALF=120000,COLOR_HALF=12000;
-let printerData=[],transportData=[],bwChart=null,colorChart=null,transportChart=null,trendChart=null,currentPeriod='all',currentTrendType='total';
+let printerData=[],transportData=[],bwChart=null,colorChart=null,transportChart=null,companyTrendChart=null,currentPeriod='all';
 const halfYears=[{key:'2024H1',label:'2023/10–2024/03',months:[{y:2023,m:10},{y:2023,m:11},{y:2023,m:12},{y:2024,m:1},{y:2024,m:2},{y:2024,m:3}]},{key:'2024H2',label:'2024/04–2024/09',months:[{y:2024,m:4},{y:2024,m:5},{y:2024,m:6},{y:2024,m:7},{y:2024,m:8},{y:2024,m:9}]},{key:'2025H1',label:'2024/10–2025/03',months:[{y:2024,m:10},{y:2024,m:11},{y:2024,m:12},{y:2025,m:1},{y:2025,m:2},{y:2025,m:3}]},{key:'2025H2',label:'2025/04–2025/09',months:[{y:2025,m:4},{y:2025,m:5},{y:2025,m:6},{y:2025,m:7},{y:2025,m:8},{y:2025,m:9}]},{key:'2026H1',label:'2025/10–2026/03',months:[{y:2025,m:10},{y:2025,m:11},{y:2025,m:12},{y:2026,m:1},{y:2026,m:2},{y:2026,m:3}]}];
 function lookupDeptName(){const code=document.getElementById('ta-code').value.trim().toUpperCase();const f=document.getElementById('ta-name');if(DEPT_MAP[code]){f.value=DEPT_MAP[code];f.style.background='var(--green-50)';f.style.color='var(--green-800)';setTimeout(()=>{f.style.background='';f.style.color='';},1500);}}
-function setTrendType(type,el){currentTrendType=type;document.querySelectorAll('#transport-dash .period-tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');renderTrendChart();}
-function renderTrendChart(){const depts=getDepts();const allMonths=[...new Set(transportData.map(d=>d.month))].sort((a,b)=>a-b);const datasets=depts.map((d,i)=>{const data=allMonths.map(m=>{const r=transportData.find(x=>x.code===d.code&&x.month===m);if(!r)return 0;return currentTrendType==='uber'?r.uber:currentTrendType==='fleet'?r.fleet:r.uber+r.fleet;});if(data.every(v=>v===0))return null;return{label:d.name,data,borderColor:TREND_COLORS[i%TREND_COLORS.length],backgroundColor:TREND_COLORS[i%TREND_COLORS.length]+'22',borderWidth:2,pointRadius:4,pointHoverRadius:6,tension:0.3,fill:false};}).filter(Boolean);if(trendChart)trendChart.destroy();trendChart=new Chart(document.getElementById('trendChart'),{type:'line',data:{labels:allMonths.map(m=>m+'月'),datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:10},boxWidth:12,padding:8}},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString()}`}}},scales:{x:{ticks:{font:{size:11}}},y:{ticks:{font:{size:10},callback:v=>'$'+v.toLocaleString()},beginAtZero:true}}}});}
 async function fetchSheet(s){const r=await fetch(`${API}?sheet=${encodeURIComponent(s)}`);const raw=await r.json();if(!raw||raw.length<2)return[];const h=raw[0];return raw.slice(1).map(row=>{const o={};h.forEach((k,i)=>o[k]=row[i]??'');return o;});}
 async function saveSheet(n,data){let rows;if(n==='印表機'){rows=[['年份','月份','黑白印量','彩色印量','備註'],...data.map(r=>[r.year,r.month,r.bw,r.color,r.note||''])];}else{rows=[['部門代碼','部門名稱','月份','Uber','55688','預算'],...data.map(r=>[r.code,r.name,r.month,r.uber,r.fleet,r.budget||0])];}await fetch(API,{method:'POST',body:JSON.stringify({sheet:n,data:rows})});}
 async function loadAll(){setSyncState('loading');try{const[p,t]=await Promise.all([fetchSheet('印表機'),fetchSheet('Uber55688')]);printerData=p.map(r=>({year:parseInt(r['年份'])||0,month:parseInt(r['月份'])||0,bw:parseInt(r['黑白印量'])||0,color:parseInt(r['彩色印量'])||0,note:r['備註']||''})).filter(r=>r.year>0);transportData=t.map(r=>({code:String(r['部門代碼']||''),name:String(r['部門名稱']||''),month:parseInt(r['月份'])||0,uber:parseInt(r['Uber'])||0,fleet:parseInt(r['55688'])||0,budget:parseInt(r['預算'])||0})).filter(r=>r.code);setSyncState('ok');renderAll();}catch(e){setSyncState('error');}finally{document.getElementById('loading-overlay').style.display='none';}}
 function setSyncState(s){const now=new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});['p-sync-dot','t-sync-dot'].forEach(id=>{const el=document.getElementById(id);if(!el)return;el.className='sync-dot'+(s==='loading'?' loading':'');el.style.background=s==='error'?'#E24B4A':s==='loading'?'#BA7517':'#3B6D11';});['p-sync-text','t-sync-text'].forEach(id=>{const el=document.getElementById(id);if(!el)return;el.textContent=s==='loading'?'同步中…':s==='error'?'連線失敗，請重新整理':`已同步 ${now}`;});}
-function renderAll(){renderPrinterDash();renderPrinterAdmin();renderTransportDash();renderTransportAdmin();renderTrendChart();}
+function renderAll(){renderPrinterDash();renderPrinterAdmin();renderCompanyTrend();renderTransportDash();renderTransportAdmin();}
 function showPanel(id,el){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));document.getElementById(id).classList.add('active');el.classList.add('active');}
 function getFilteredPrinter(){if(currentPeriod==='all')return[...printerData].sort((a,b)=>a.year!==b.year?a.year-b.year:a.month-b.month);const hy=halfYears.find(h=>h.key===currentPeriod);if(!hy)return printerData;return hy.months.map(m=>printerData.find(r=>r.year===m.y&&r.month===m.m)).filter(Boolean);}
 function setPeriod(p,el){currentPeriod=p;document.querySelectorAll('#printer-dash .period-tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');renderPrinterDash();}
+
+function renderCompanyTrend(){
+  const allMonths=[...new Set(transportData.map(d=>d.month))].sort((a,b)=>a-b);
+  const uberByMonth=allMonths.map(m=>transportData.filter(d=>d.month===m).reduce((s,d)=>s+d.uber,0));
+  const fleetByMonth=allMonths.map(m=>transportData.filter(d=>d.month===m).reduce((s,d)=>s+d.fleet,0));
+  const totalByMonth=allMonths.map((m,i)=>uberByMonth[i]+fleetByMonth[i]);
+  if(companyTrendChart)companyTrendChart.destroy();
+  companyTrendChart=new Chart(document.getElementById('companyTrendChart'),{
+    type:'bar',
+    data:{
+      labels:allMonths.map(m=>m+'月'),
+      datasets:[
+        {label:'Uber',data:uberByMonth,backgroundColor:'#185FA5',borderRadius:3,stack:'a'},
+        {label:'55688',data:fleetByMonth,backgroundColor:'#0F6E56',borderRadius:3,stack:'a'},
+        {label:'合計',data:totalByMonth,type:'line',borderColor:'#854F0B',backgroundColor:'transparent',borderWidth:2.5,pointRadius:5,pointBackgroundColor:'#854F0B',tension:0.3,stack:undefined}
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:12,padding:12}},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString()}`}}},scales:{x:{ticks:{font:{size:11}}},y:{ticks:{font:{size:10},callback:v=>'$'+v.toLocaleString()},beginAtZero:true}}}
+  });
+}
+
 function renderPrinterDash(){const data=getFilteredPrinter();const totalBW=data.reduce((s,r)=>s+r.bw,0),totalColor=data.reduce((s,r)=>s+r.color,0);const avgBW=data.length?Math.round(totalBW/data.length):0,avgColor=data.length?Math.round(totalColor/data.length):0;document.getElementById('printer-metrics').innerHTML=`<div class="metric-card"><div class="metric-label">黑白總印量</div><div class="metric-value">${totalBW.toLocaleString()}</div><div class="metric-sub">張</div></div><div class="metric-card"><div class="metric-label">彩色總印量</div><div class="metric-value">${totalColor.toLocaleString()}</div><div class="metric-sub">張</div></div><div class="metric-card"><div class="metric-label">月均黑白</div><div class="metric-value ${avgBW>BW_MONTHLY?'danger':avgBW>BW_MONTHLY*0.9?'warn':'good'}">${avgBW.toLocaleString()}</div><div class="metric-sub">上限 ${BW_MONTHLY.toLocaleString()}</div></div><div class="metric-card"><div class="metric-label">月均彩色</div><div class="metric-value ${avgColor>COLOR_MONTHLY?'danger':avgColor>COLOR_MONTHLY*0.9?'warn':'good'}">${avgColor.toLocaleString()}</div><div class="metric-sub">上限 ${COLOR_MONTHLY.toLocaleString()}</div></div>`;
 const alerts=[];data.forEach(r=>{if(r.bw>BW_MONTHLY)alerts.push({type:'danger',msg:`⛔ ${r.year}/${r.month}月 黑白 ${r.bw.toLocaleString()} 張，超過月合約！`});else if(r.bw>BW_MONTHLY*0.9)alerts.push({type:'warn',msg:`⚠️ ${r.year}/${r.month}月 黑白 ${r.bw.toLocaleString()} 張，已達 90%。`});if(r.color>COLOR_MONTHLY)alerts.push({type:'danger',msg:`⛔ ${r.year}/${r.month}月 彩色 ${r.color.toLocaleString()} 張，超過月合約！`});else if(r.color>COLOR_MONTHLY*0.9)alerts.push({type:'warn',msg:`⚠️ ${r.year}/${r.month}月 彩色 ${r.color.toLocaleString()} 張，已達 90%。`});});
 document.getElementById('printer-alerts').innerHTML=alerts.length?alerts.map(a=>`<div class="alert-box ${a.type}"><span>${a.msg}</span></div>`).join(''):'<div class="alert-box ok"><span>✓ 所有月份印量均在合約範圍內。</span></div>';
