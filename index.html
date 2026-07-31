@@ -62,7 +62,6 @@
   .alert-box.warn{background:var(--amber-50);color:var(--amber-800);border:0.5px solid var(--amber-600)}
   .alert-box.danger{background:var(--red-50);color:var(--red-800);border:0.5px solid var(--red-200)}
   .alert-box.ok{background:var(--green-50);color:var(--green-800);border:0.5px solid var(--green-200)}
-  .alert-box.info{background:var(--blue-50);color:var(--blue-800);border:0.5px solid var(--blue-600)}
   .period-tabs{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:20px}
   .period-tab{padding:5px 14px;border-radius:6px;font-size:12px;cursor:pointer;border:0.5px solid var(--border-strong);background:transparent;color:var(--text2);transition:all 0.15s}
   .period-tab.active{background:var(--blue-600);color:#fff;border-color:var(--blue-600);font-weight:500}
@@ -207,15 +206,18 @@
       <div class="sync-bar"><span class="sync-dot" id="t-sync-dot"></span><span id="t-sync-text">資料載入中…</span><button class="btn" style="margin-left:auto;padding:4px 12px;font-size:11px" onclick="loadAll()">重新整理</button></div>
       <div id="transport-alerts"></div>
       <div class="metrics-grid" id="transport-metrics"></div>
+
+      <!-- 全公司每月車資趨勢 -->
       <div class="card">
-        <div class="card-title">全公司每月車資趨勢（Uber vs 55688）</div>
+        <div class="card-title">全公司每月車資趨勢</div>
         <div class="legend-row">
           <span style="display:flex;align-items:center;gap:5px"><span class="legend-dot" style="background:#185FA5"></span>Uber</span>
           <span style="display:flex;align-items:center;gap:5px"><span class="legend-dot" style="background:#0F6E56"></span>55688</span>
-          <span style="display:flex;align-items:center;gap:5px"><span class="legend-dot" style="background:#854F0B"></span>合計</span>
+          <span style="display:flex;align-items:center;gap:5px"><span class="legend-dot" style="background:#A32D2D;border-radius:50%"></span>月合計折線</span>
         </div>
-        <div class="chart-wrap" style="height:280px"><canvas id="companyTrendChart">全公司月費趨勢</canvas></div>
+        <div class="chart-wrap" style="height:300px"><canvas id="companyTrendChart">全公司月費趨勢</canvas></div>
       </div>
+
       <div class="card">
         <div class="card-title">各部門月費比較</div>
         <div style="display:flex;gap:8px;margin-bottom:12px">
@@ -274,16 +276,22 @@ const DEPT_MAP={'CH0100':'股東會','CH0300':'管理部','CH0401':'董事長室
 const BW_MONTHLY=20000,COLOR_MONTHLY=2000,BW_HALF=120000,COLOR_HALF=12000;
 let printerData=[],transportData=[],bwChart=null,colorChart=null,transportChart=null,companyTrendChart=null,currentPeriod='all';
 const halfYears=[{key:'2024H1',label:'2023/10–2024/03',months:[{y:2023,m:10},{y:2023,m:11},{y:2023,m:12},{y:2024,m:1},{y:2024,m:2},{y:2024,m:3}]},{key:'2024H2',label:'2024/04–2024/09',months:[{y:2024,m:4},{y:2024,m:5},{y:2024,m:6},{y:2024,m:7},{y:2024,m:8},{y:2024,m:9}]},{key:'2025H1',label:'2024/10–2025/03',months:[{y:2024,m:10},{y:2024,m:11},{y:2024,m:12},{y:2025,m:1},{y:2025,m:2},{y:2025,m:3}]},{key:'2025H2',label:'2025/04–2025/09',months:[{y:2025,m:4},{y:2025,m:5},{y:2025,m:6},{y:2025,m:7},{y:2025,m:8},{y:2025,m:9}]},{key:'2026H1',label:'2025/10–2026/03',months:[{y:2025,m:10},{y:2025,m:11},{y:2025,m:12},{y:2026,m:1},{y:2026,m:2},{y:2026,m:3}]}];
+
 function lookupDeptName(){const code=document.getElementById('ta-code').value.trim().toUpperCase();const f=document.getElementById('ta-name');if(DEPT_MAP[code]){f.value=DEPT_MAP[code];f.style.background='var(--green-50)';f.style.color='var(--green-800)';setTimeout(()=>{f.style.background='';f.style.color='';},1500);}}
+
 async function fetchSheet(s){const r=await fetch(`${API}?sheet=${encodeURIComponent(s)}`);const raw=await r.json();if(!raw||raw.length<2)return[];const h=raw[0];return raw.slice(1).map(row=>{const o={};h.forEach((k,i)=>o[k]=row[i]??'');return o;});}
 async function saveSheet(n,data){let rows;if(n==='印表機'){rows=[['年份','月份','黑白印量','彩色印量','備註'],...data.map(r=>[r.year,r.month,r.bw,r.color,r.note||''])];}else{rows=[['部門代碼','部門名稱','月份','Uber','55688','預算'],...data.map(r=>[r.code,r.name,r.month,r.uber,r.fleet,r.budget||0])];}await fetch(API,{method:'POST',body:JSON.stringify({sheet:n,data:rows})});}
+
 async function loadAll(){setSyncState('loading');try{const[p,t]=await Promise.all([fetchSheet('印表機'),fetchSheet('Uber55688')]);printerData=p.map(r=>({year:parseInt(r['年份'])||0,month:parseInt(r['月份'])||0,bw:parseInt(r['黑白印量'])||0,color:parseInt(r['彩色印量'])||0,note:r['備註']||''})).filter(r=>r.year>0);transportData=t.map(r=>({code:String(r['部門代碼']||''),name:String(r['部門名稱']||''),month:parseInt(r['月份'])||0,uber:parseInt(r['Uber'])||0,fleet:parseInt(r['55688'])||0,budget:parseInt(r['預算'])||0})).filter(r=>r.code);setSyncState('ok');renderAll();}catch(e){setSyncState('error');}finally{document.getElementById('loading-overlay').style.display='none';}}
+
 function setSyncState(s){const now=new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});['p-sync-dot','t-sync-dot'].forEach(id=>{const el=document.getElementById(id);if(!el)return;el.className='sync-dot'+(s==='loading'?' loading':'');el.style.background=s==='error'?'#E24B4A':s==='loading'?'#BA7517':'#3B6D11';});['p-sync-text','t-sync-text'].forEach(id=>{const el=document.getElementById(id);if(!el)return;el.textContent=s==='loading'?'同步中…':s==='error'?'連線失敗，請重新整理':`已同步 ${now}`;});}
+
 function renderAll(){renderPrinterDash();renderPrinterAdmin();renderCompanyTrend();renderTransportDash();renderTransportAdmin();}
 function showPanel(id,el){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));document.getElementById(id).classList.add('active');el.classList.add('active');}
 function getFilteredPrinter(){if(currentPeriod==='all')return[...printerData].sort((a,b)=>a.year!==b.year?a.year-b.year:a.month-b.month);const hy=halfYears.find(h=>h.key===currentPeriod);if(!hy)return printerData;return hy.months.map(m=>printerData.find(r=>r.year===m.y&&r.month===m.m)).filter(Boolean);}
 function setPeriod(p,el){currentPeriod=p;document.querySelectorAll('#printer-dash .period-tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');renderPrinterDash();}
 
+// ===== 全公司每月車資趨勢（堆疊長條 + 合計折線）=====
 function renderCompanyTrend(){
   const allMonths=[...new Set(transportData.map(d=>d.month))].sort((a,b)=>a-b);
   const uberByMonth=allMonths.map(m=>transportData.filter(d=>d.month===m).reduce((s,d)=>s+d.uber,0));
@@ -295,12 +303,22 @@ function renderCompanyTrend(){
     data:{
       labels:allMonths.map(m=>m+'月'),
       datasets:[
-        {label:'Uber',data:uberByMonth,backgroundColor:'#185FA5',borderRadius:3,stack:'a'},
-        {label:'55688',data:fleetByMonth,backgroundColor:'#0F6E56',borderRadius:3,stack:'a'},
-        {label:'合計',data:totalByMonth,type:'line',borderColor:'#854F0B',backgroundColor:'transparent',borderWidth:2.5,pointRadius:5,pointBackgroundColor:'#854F0B',tension:0.3,stack:undefined}
+        {label:'Uber',data:uberByMonth,backgroundColor:'#185FA5CC',borderRadius:4,stack:'cost'},
+        {label:'55688',data:fleetByMonth,backgroundColor:'#0F6E56CC',borderRadius:4,stack:'cost'},
+        {label:'月合計',data:totalByMonth,type:'line',borderColor:'#A32D2D',backgroundColor:'transparent',borderWidth:2.5,pointRadius:5,pointBackgroundColor:'#A32D2D',pointBorderColor:'#fff',pointBorderWidth:2,tension:0.3,order:0}
       ]
     },
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:12,padding:12}},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString()}`}}},scales:{x:{ticks:{font:{size:11}}},y:{ticks:{font:{size:10},callback:v=>'$'+v.toLocaleString()},beginAtZero:true}}}
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'top',labels:{font:{size:11},boxWidth:14,padding:14}},
+        tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString()}`}}
+      },
+      scales:{
+        x:{ticks:{font:{size:12}},grid:{display:false}},
+        y:{ticks:{font:{size:10},callback:v=>'$'+v.toLocaleString()},beginAtZero:true}
+      }
+    }
   });
 }
 
@@ -313,12 +331,15 @@ if(colorChart)colorChart.destroy();colorChart=new Chart(document.getElementById(
 let hyHtml='<table class="data-table"><thead><tr><th>半年期間</th><th class="num">黑白印量</th><th class="num">剩餘可用(黑白)</th><th class="num">使用率(黑白)</th><th class="num">彩色印量</th><th class="num">剩餘可用(彩色)</th><th class="num">使用率(彩色)</th><th>狀態</th></tr></thead><tbody>';
 halfYears.forEach(hy=>{let bwSum=0,colorSum=0,hasMissing=false;hy.months.forEach(m=>{const r=printerData.find(d=>d.year===m.y&&d.month===m.m);if(r){bwSum+=r.bw;colorSum+=r.color;}else hasMissing=true;});if(bwSum===0&&colorSum===0)return;const bwR=BW_HALF-bwSum,colorR=COLOR_HALF-colorSum,bwP=Math.round(bwSum/BW_HALF*100),colorP=Math.round(colorSum/COLOR_HALF*100);const st=bwSum>BW_HALF||colorSum>COLOR_HALF?'<span class="badge badge-danger">超過合約</span>':bwP>90||colorP>90?'<span class="badge badge-warn">接近上限</span>':'<span class="badge badge-ok">正常</span>';hyHtml+=`<tr><td>${hy.label}${hasMissing?' <span class="tag">部分遺漏</span>':''}</td><td class="num">${bwSum.toLocaleString()}</td><td class="num" style="color:${bwR<0?'var(--red-600)':'var(--teal-600)'}">${bwR.toLocaleString()}</td><td class="num"><div style="display:flex;align-items:center;gap:6px"><div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${Math.min(bwP,100)}%;background:${bwP>100?'#E24B4A':bwP>90?'#BA7517':'#185FA5'}"></div></div><span style="font-size:11px;min-width:30px">${bwP}%</span></div></td><td class="num">${colorSum.toLocaleString()}</td><td class="num" style="color:${colorR<0?'var(--red-600)':'var(--teal-600)'}">${colorR.toLocaleString()}</td><td class="num"><div style="display:flex;align-items:center;gap:6px"><div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${Math.min(colorP,100)}%;background:${colorP>100?'#E24B4A':colorP>90?'#BA7517':'#0F6E56'}"></div></div><span style="font-size:11px;min-width:30px">${colorP}%</span></div></td><td>${st}</td></tr>`;});hyHtml+='</tbody></table>';document.getElementById('half-year-table').innerHTML=hyHtml;
 document.getElementById('printer-detail-body').innerHTML=data.map(r=>{const bb=r.bw>BW_MONTHLY?'badge-danger':r.bw>BW_MONTHLY*0.9?'badge-warn':'badge-ok';const cb=r.color>COLOR_MONTHLY?'badge-danger':r.color>COLOR_MONTHLY*0.9?'badge-warn':'badge-ok';return`<tr><td>${r.year}/${String(r.month).padStart(2,'0')}</td><td class="num">${r.bw.toLocaleString()}</td><td class="num">${r.color.toLocaleString()}</td><td class="num">${(r.bw+r.color).toLocaleString()}</td><td><span class="badge ${bb}">${r.bw>BW_MONTHLY?'超過':r.bw>BW_MONTHLY*0.9?'接近上限':'正常'}</span></td><td><span class="badge ${cb}">${r.color>COLOR_MONTHLY?'超過':r.color>COLOR_MONTHLY*0.9?'接近上限':'正常'}</span></td><td>${r.note||''}</td></tr>`;}).join('');}
+
 function renderPrinterAdmin(){const sorted=[...printerData].sort((a,b)=>a.year!==b.year?a.year-b.year:a.month-b.month);document.getElementById('admin-printer-body').innerHTML=sorted.map(r=>`<tr><td>${r.year}/${String(r.month).padStart(2,'0')}</td><td class="num">${r.bw.toLocaleString()}</td><td class="num">${r.color.toLocaleString()}</td><td>${r.note||'-'}</td><td><button class="btn btn-danger" style="padding:3px 10px;font-size:11px" onclick="deletePrinterRow(${r.year},${r.month})">刪除</button></td></tr>`).join('');}
 async function savePrinterRow(){const y=parseInt(document.getElementById('pa-year').value),m=parseInt(document.getElementById('pa-month').value),bw=parseInt(document.getElementById('pa-bw').value)||0,color=parseInt(document.getElementById('pa-color').value)||0,note=document.getElementById('pa-note').value;const idx=printerData.findIndex(r=>r.year===y&&r.month===m);if(idx>=0)printerData[idx]={year:y,month:m,bw,color,note};else printerData.push({year:y,month:m,bw,color,note});showToast('儲存中…');await saveSheet('印表機',printerData);renderPrinterAdmin();renderPrinterDash();showToast('✓ 已同步至 Google Sheets');}
 async function deletePrinterRow(y,m){if(!confirm(`確定刪除 ${y}/${m}月 的資料？`))return;printerData=printerData.filter(r=>!(r.year===y&&r.month===m));await saveSheet('印表機',printerData);renderPrinterAdmin();renderPrinterDash();showToast('✓ 已刪除');}
+
 function getDepts(){const map={};transportData.forEach(r=>{if(r.code)map[r.code]=r.name;});return Object.entries(map).map(([code,name])=>({code,name}));}
 function getDeptTotal(code,type){return transportData.filter(d=>d.code===code).reduce((s,d)=>s+(type==='uber'?d.uber:type==='fleet'?d.fleet:d.uber+d.fleet),0);}
 function getDeptBudget(code){const rows=transportData.filter(d=>d.code===code&&d.budget>0);return rows.length?rows[rows.length-1].budget:0;}
+
 function renderTransportDash(){const selMonth=parseInt(document.getElementById('t-month-select').value)||1;const depts=getDepts();const monthRows=transportData.filter(d=>d.month===selMonth);const totalUber=monthRows.reduce((s,d)=>s+d.uber,0),totalFleet=monthRows.reduce((s,d)=>s+d.fleet,0),cumTotal=depts.reduce((s,d)=>s+getDeptTotal(d.code),0);document.getElementById('transport-metrics').innerHTML=`<div class="metric-card"><div class="metric-label">${selMonth}月 Uber 合計</div><div class="metric-value">$${totalUber.toLocaleString()}</div></div><div class="metric-card"><div class="metric-label">${selMonth}月 55688 合計</div><div class="metric-value">$${totalFleet.toLocaleString()}</div></div><div class="metric-card"><div class="metric-label">${selMonth}月總費用</div><div class="metric-value">$${(totalUber+totalFleet).toLocaleString()}</div></div><div class="metric-card"><div class="metric-label">全部門累計</div><div class="metric-value">$${cumTotal.toLocaleString()}</div></div>`;
 const alerts=[];depts.forEach(d=>{const budget=getDeptBudget(d.code);if(!budget)return;const total=getDeptTotal(d.code),pct=Math.round(total/budget*100);if(total>budget)alerts.push({type:'danger',msg:`⛔ ${d.name} 累計 $${total.toLocaleString()} 已超過預算！`});else if(pct>=80)alerts.push({type:'warn',msg:`⚠️ ${d.name} 累計 $${total.toLocaleString()}，已達預算 ${pct}%。`});});
 document.getElementById('transport-alerts').innerHTML=alerts.length?alerts.map(a=>`<div class="alert-box ${a.type}"><span>${a.msg}</span></div>`).join(''):'<div class="alert-box ok"><span>✓ 所有設定預算的部門均在範圍內。</span></div>';
@@ -326,6 +347,7 @@ const active=depts.filter(d=>{const r=transportData.find(x=>x.code===d.code&&x.m
 if(transportChart)transportChart.destroy();transportChart=new Chart(document.getElementById('transportChart'),{type:'bar',data:{labels:active.map(d=>d.name),datasets:[{label:'Uber',data:active.map(d=>{const r=transportData.find(x=>x.code===d.code&&x.month===selMonth);return r?r.uber:0;}),backgroundColor:'#185FA5',borderRadius:3},{label:'55688',data:active.map(d=>{const r=transportData.find(x=>x.code===d.code&&x.month===selMonth);return r?r.fleet:0;}),backgroundColor:'#0F6E56',borderRadius:3}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: $${ctx.parsed.x.toLocaleString()}`}}},scales:{x:{ticks:{font:{size:10},callback:v=>'$'+v.toLocaleString()}},y:{ticks:{font:{size:10}}}}}});
 document.getElementById('dept-cards').innerHTML=depts.map(d=>{const total=getDeptTotal(d.code),budget=getDeptBudget(d.code),pct=budget>0?Math.round(total/budget*100):0;return`<div class="dept-card"><div class="dept-name">${d.name} <span class="dept-code">${d.code}</span></div><div class="dept-row"><span class="dept-row-label">累計費用</span><span class="dept-row-val">$${total.toLocaleString()}</span></div>${budget>0?`<div class="dept-row"><span class="dept-row-label">預算</span><span class="dept-row-val">$${budget.toLocaleString()}</span></div><div style="margin-top:6px"><div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${Math.min(pct,100)}%;background:${pct>100?'#E24B4A':pct>=80?'#BA7517':'#185FA5'}"></div></div><div style="font-size:10px;color:var(--text3);margin-top:3px">${pct}% <span class="badge ${pct>100?'badge-danger':pct>=80?'badge-warn':'badge-ok'}" style="font-size:9px;padding:1px 5px">${pct>100?'超過':pct>=80?'接近上限':'正常'}</span></div></div>`:'<div style="font-size:10px;color:var(--text3);margin-top:4px">尚未設定預算</div>'}</div>`;}).join('');
 document.getElementById('transport-detail-body').innerHTML=depts.map(d=>{const uberSum=getDeptTotal(d.code,'uber'),fleetSum=getDeptTotal(d.code,'fleet'),total=uberSum+fleetSum,budget=getDeptBudget(d.code),pct=budget>0?Math.round(total/budget*100):0;return`<tr><td><strong>${d.name}</strong><br><span style="font-size:10px;color:var(--text3)">${d.code}</span></td><td class="num">$${uberSum.toLocaleString()}</td><td class="num">$${fleetSum.toLocaleString()}</td><td class="num"><strong>$${total.toLocaleString()}</strong></td><td class="num">${budget>0?'$'+budget.toLocaleString():'<span class="badge badge-gray">未設定</span>'}</td><td>${budget>0?`<div style="display:flex;align-items:center;gap:5px"><div class="progress-bar-wrap" style="min-width:50px"><div class="progress-bar-fill" style="width:${Math.min(pct,100)}%;background:${pct>100?'#E24B4A':pct>=80?'#BA7517':'#185FA5'}"></div></div><span style="font-size:10px">${pct}%</span></div>`:'—'}</td></tr>`;}).join('');}
+
 function renderTransportAdmin(){document.getElementById('ta-detail-body').innerHTML=[...transportData].sort((a,b)=>a.month-b.month).map(r=>`<tr><td>${r.code}</td><td>${r.name}</td><td>${r.month}月</td><td class="num">$${r.uber.toLocaleString()}</td><td class="num">$${r.fleet.toLocaleString()}</td><td class="num">${r.budget>0?'$'+r.budget.toLocaleString():'-'}</td><td><button class="btn btn-danger" style="padding:3px 10px;font-size:11px" onclick="deleteTransportRow('${r.code}',${r.month})">刪除</button></td></tr>`).join('');}
 async function saveTransportRow(){const code=document.getElementById('ta-code').value.trim().toUpperCase(),name=document.getElementById('ta-name').value.trim(),month=parseInt(document.getElementById('ta-month').value),uber=parseInt(document.getElementById('ta-uber').value)||0,fleet=parseInt(document.getElementById('ta-fleet').value)||0,budget=parseInt(document.getElementById('ta-budget').value)||0;if(!code||!name){showToast('請填寫部門代碼和名稱');return;}const idx=transportData.findIndex(d=>d.code===code&&d.month===month);if(idx>=0)transportData[idx]={code,name,month,uber,fleet,budget};else transportData.push({code,name,month,uber,fleet,budget});showToast('儲存中…');await saveSheet('Uber55688',transportData);renderTransportAdmin();renderTransportDash();showToast('✓ 已同步至 Google Sheets');}
 async function deleteTransportRow(code,month){if(!confirm(`確定刪除 ${code} ${month}月 的資料？`))return;transportData=transportData.filter(d=>!(d.code===code&&d.month===month));await saveSheet('Uber55688',transportData);renderTransportAdmin();renderTransportDash();showToast('✓ 已刪除');}
